@@ -4,11 +4,12 @@ import { OSM, TileWMS, Vector as VectorSource } from "ol/source";
 import { Tile as TileLayer, Vector as VectorLayer, Group as LayerGroup } from "ol/layer";
 import GeoJSON from "ol/format/GeoJSON";
 import { fromLonLat, transformExtent } from "ol/proj";
-import { FullScreen, ZoomToExtent, defaults as defaultControls } from "ol/control";
+import { ScaleLine, FullScreen, ZoomToExtent, Control, MousePosition, defaults as defaultControls } from "ol/control";
 import LayerSwitcher from "ol-layerswitcher";
 import Overlay from "ol/Overlay";
 import { Style, Stroke, Fill } from "ol/style";
 import "ol-layerswitcher/dist/ol-layerswitcher.css";
+import { format } from "ol/coordinate";
 
 // Configuración de la vista inicial (centrada en España)
 const spainCenter = fromLonLat([-3.7038, 40.4168]); // Coordenadas aproximadas de Madrid
@@ -44,9 +45,63 @@ const mtn50Layer = new TileLayer({
   visible: false,
 });
 
+// 03.6 Control personalizado
+class InfoControl extends Control {
+  constructor(opt_options) {
+    const options = opt_options || {};
+
+    const button = document.createElement("button");
+    button.innerHTML = "I";
+
+    const element = document.createElement("div");
+    element.className = "info-control ol-unselectable ol-control";
+    element.appendChild(button);
+
+    super({
+      element: element,
+      target: options.target,
+    });
+
+    button.addEventListener("click", this.handleInfo.bind(this), false);
+  }
+
+  handleInfo() {
+    let map = this.getMap();
+    let currentExtent = map.getView().calculateExtent(map.getSize());
+    let projectionCode = map.getView().getProjection().code_;
+    let extent4326 = transformExtent(
+      currentExtent,
+      projectionCode,
+      "EPSG:4326"
+    );
+
+    alert(`Extensión de la vista actual (4326): ${extent4326.toString()}`);
+  }
+}
+
+const infoControl = new InfoControl();
+
+// 03.3 Mouse position control. Modificación de CSS. Añadir subclase format
+const mousePositionControl = new MousePosition({
+  coordinateFormat: (coordinate) => {
+    return format(coordinate, "Lat: {y}, Long: {x}", 4);
+  },
+  projection: "EPSG:4326",
+  className: "coordinate_display",
+});
+
 // Botón de zoom a la extensión de La Coruña
 const zoomToCorunaControl = new ZoomToExtent({
   extent: transformExtent([-8.4125, 43.3623, -8.3558, 43.385], "EPSG:4326", "EPSG:3857"),
+});
+
+// Barra de Escala
+const scaleControl = new ScaleLine({
+  units: "metric",
+  bar: true, // Representa la escala gráfica con intervalos
+  steps: 4, // Divisiones
+  //text: true, // Valor de escala
+  minWidth: 140, // Ancho mínimo
 });
 
 // Grupo de capas base
@@ -137,7 +192,7 @@ const map = new Map({
     minZoom: 4,
     extent: spainExtent,
   }),
-  controls: defaultControls().extend([new FullScreen(), zoomToCorunaControl]),
+  controls: defaultControls().extend([new FullScreen(), mousePositionControl, zoomToCorunaControl, scaleControl, infoControl]),
   overlays: [overlay],
 });
 
